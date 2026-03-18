@@ -1,36 +1,23 @@
-# Nix derivation to package the nixos-packages osquery extension.
+# Nix derivation for the nixpkgs-osquery extension.
 #
 # Build:   nix-build
-# Result:  ./result/bin/nixos-packages-extension
-#
+# Result:  ./result/bin/nixpkgs-osquery
 { pkgs ? import <nixpkgs> {} }:
 
-let
-  pythonEnv = pkgs.python3.withPackages (ps: [
-    ps.osquery or (ps.callPackage ./osquery-python.nix {})
-  ]);
-in
-pkgs.stdenv.mkDerivation {
-  pname = "nixos-packages-extension";
+pkgs.buildGoModule {
+  pname = "nixpkgs-osquery";
   version = "1.0.0";
 
   src = ./.;
 
-  buildInputs = [ pythonEnv pkgs.makeWrapper ];
-
-  installPhase = ''
-    mkdir -p $out/bin $out/share/nixos-packages-extension
-
-    cp nixos_packages_extension.py $out/share/nixos-packages-extension/
-
-    makeWrapper ${pythonEnv}/bin/python3 $out/bin/nixos-packages-extension \
-      --add-flags "$out/share/nixos-packages-extension/nixos_packages_extension.py"
-  '';
+  # Set to the hash printed by `nix-build` on first run, or use `null`
+  # temporarily to fetch and compute it.
+  vendorHash = null;
 
   meta = with pkgs.lib; {
     description = "osquery extension that enumerates packages on a NixOS system";
     license = licenses.mit;
     platforms = [ "x86_64-linux" "aarch64-linux" ];
-    mainProgram = "nixos-packages-extension";
+    mainProgram = "nixpkgs-osquery";
   };
 }

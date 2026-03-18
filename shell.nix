@@ -1,36 +1,27 @@
-# Development shell for the nixos-packages osquery extension.
+# Development shell for the nixpkgs-osquery Go extension.
 #
 # Usage:
 #   nix-shell
-#   python nixos_packages_extension.py --socket /run/osquery.em
-#
+#   go build -o nixpkgs-osquery .
+#   go test ./tables/...
 { pkgs ? import <nixpkgs> {} }:
 
 pkgs.mkShell {
   name = "nixpkgs-osquery-dev";
 
   buildInputs = with pkgs; [
-    # Runtime dependencies
-    osquery
-    python3
-    python3Packages.pip
-
-    # Nix tools used by the extension at runtime
-    nix
+    go
+    gopls          # Go language server
+    gotools        # goimports, etc.
+    osquery        # for integration testing
   ];
 
   shellHook = ''
-    # Install the osquery Python SDK into a local venv if not present
-    if [ ! -d .venv ]; then
-      echo "Creating Python virtual environment..."
-      python3 -m venv .venv
-      .venv/bin/pip install --quiet osquery
-    fi
-    source .venv/bin/activate
     echo ""
-    echo "NixOS osquery extension dev shell"
-    echo "  Run:  python nixos_packages_extension.py --socket /run/osquery.em"
-    echo "  Test: python -c 'import nixos_packages_extension; print(nixos_packages_extension.collect_all_packages()[:3])'"
+    echo "nixpkgs-osquery development shell (Go)"
+    echo "  Build:      go build -o nixpkgs-osquery ."
+    echo "  Test:       go test ./tables/..."
+    echo "  Run:        osqueryi --extension ./nixpkgs-osquery"
     echo ""
   '';
 }
