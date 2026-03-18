@@ -20,7 +20,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/alexloew/nixpkgs-osquery/osqext/plugin/table"
+	"github.com/osquery/osquery-go/plugin/table"
 )
 
 // UserPackages returns the nix_user_packages table plugin.

@@ -25,7 +25,7 @@ import (
 	"path/filepath"
 	"strconv"
 
-	"github.com/alexloew/nixpkgs-osquery/osqext/plugin/table"
+	"github.com/osquery/osquery-go/plugin/table"
 )
 
 // FlakeInputs returns the nix_flake_inputs table plugin.

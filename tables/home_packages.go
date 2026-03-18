@@ -22,7 +22,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/alexloew/nixpkgs-osquery/osqext/plugin/table"
+	"github.com/osquery/osquery-go/plugin/table"
 )
 
 // HomePackages returns the nix_home_packages table plugin.

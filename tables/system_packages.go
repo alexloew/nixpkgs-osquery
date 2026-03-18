@@ -19,7 +19,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/alexloew/nixpkgs-osquery/osqext/plugin/table"
+	"github.com/osquery/osquery-go/plugin/table"
 )
 
 // SystemPackages returns the nix_system_packages table plugin.

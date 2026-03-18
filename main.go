@@ -11,7 +11,7 @@ import (
 	"flag"
 	"log"
 
-	osquery "github.com/alexloew/nixpkgs-osquery/osqext"
+	osquery "github.com/osquery/osquery-go"
 	"github.com/alexloew/nixpkgs-osquery/tables"
 )
 
