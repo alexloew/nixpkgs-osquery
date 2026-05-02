@@ -127,7 +127,7 @@ func generateHomePackages(ctx context.Context, _ table.QueryContext) ([]map[stri
 
 		gen := generationNumber(hm.profileDir)
 
-		out, err := exec.CommandContext(ctx, "nix-store", "-qR", resolved).Output()
+		out, err := exec.CommandContext(ctx, nixStoreBin, "-qR", resolved).Output()
 		if err != nil {
 			continue
 		}
