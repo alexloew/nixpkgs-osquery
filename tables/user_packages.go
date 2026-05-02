@@ -59,7 +59,7 @@ func generateUserPackages(ctx context.Context, _ table.QueryContext) ([]map[stri
 			continue
 		}
 
-		out, err := exec.CommandContext(ctx, "nix-store", "-qR", resolved).Output()
+		out, err := exec.CommandContext(ctx, nixStoreBin, "-qR", resolved).Output()
 		if err != nil {
 			continue
 		}

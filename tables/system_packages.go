@@ -34,7 +34,7 @@ func SystemPackages() *table.Plugin {
 }
 
 func generateSystemPackages(ctx context.Context, _ table.QueryContext) ([]map[string]string, error) {
-	out, err := exec.CommandContext(ctx, "nix-store", "-qR", "/run/current-system").Output()
+	out, err := exec.CommandContext(ctx, nixStoreBin, "-qR", "/run/current-system").Output()
 	if err != nil {
 		// Not a NixOS system, /run/current-system absent, or nix-store unavailable.
 		return nil, nil

@@ -6,6 +6,8 @@ import (
 	"strings"
 )
 
+const nixStoreBin = "/run/current-system/sw/bin/nix-store"
+
 // storePathRe matches a valid Nix store path and captures the name-version
 // portion after the 32-character hash.
 //
