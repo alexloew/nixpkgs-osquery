@@ -1,0 +1,31 @@
+name: Nix
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  flake-check:
+    name: nix flake check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: cachix/install-nix-action@v27
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      # Eval-only — actually building the package requires a real
+      # vendorHash, which is currently `null` in flake.nix until the
+      # first `just update-vendor-hash` run. Once that's set, drop
+      # `--no-build` to fully build the derivation in CI.
+      - run: nix flake check --no-build --show-trace
