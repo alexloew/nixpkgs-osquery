@@ -21,9 +21,8 @@
 
           src = ./.;
 
-          # Placeholder: CI will fail with "got: sha256-…" — copy that
-          # value here, or run `just update-vendor-hash` locally.
-          vendorHash = pkgs.lib.fakeHash;
+          # Recompute via `just update-vendor-hash` after any go.mod change.
+          vendorHash = "sha256-qsjjO/7+QaxfBYhCvV4bgqnlYlzp7azV3Mv6n/SvS1Q=";
 
           ldflags = [
             "-s"
