@@ -26,8 +26,13 @@ pkgs.buildGoModule {
     "-X main.builtBy=nix"
   ];
 
-  # osquery's autoloader expects extension binaries to end in `.ext`.
+  nativeBuildInputs = [ pkgs.makeBinaryWrapper ];
+
+  # Wrap the binary so `nix-store` is on PATH at runtime, and add the
+  # `.ext` alias required by osquery's autoloader.
   postInstall = ''
+    wrapProgram $out/bin/nixpkgs-osquery \
+      --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.nix ]}
     ln -s nixpkgs-osquery $out/bin/nixpkgs-osquery.ext
   '';
 

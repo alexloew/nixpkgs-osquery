@@ -28,15 +28,22 @@ import (
 // closurePath is queried with `nix-store -qR` at row generation time.
 func SystemPackages(closurePath string) *table.Plugin {
 	columns := []table.ColumnDefinition{
-		table.TextColumn("name"),       // full derivation name, e.g. "curl-7.88.1"
-		table.TextColumn("pname"),      // package name, e.g. "curl"
-		table.TextColumn("version"),    // version string, e.g. "7.88.1"
-		table.TextColumn("store_path"), // absolute /nix/store path
+		table.TextColumn("name", table.ColumnDescription("Full derivation name, e.g. 'curl-7.88.1'.")),
+		table.TextColumn("pname", table.ColumnDescription("Package name without version, e.g. 'curl'.")),
+		table.TextColumn("version", table.ColumnDescription("Version string parsed from the derivation name.")),
+		table.TextColumn("store_path", table.ColumnDescription("Absolute /nix/store path of the package.")),
 	}
 	gen := func(ctx context.Context, _ table.QueryContext) ([]map[string]string, error) {
 		return generateSystemPackages(ctx, closurePath)
 	}
-	return table.NewPlugin("nix_system_packages", columns, gen)
+	return table.NewPlugin(
+		"nix_system_packages",
+		columns,
+		gen,
+		table.WithDescription("Transitive closure of a NixOS system derivation (default: /run/current-system). Authoritative software inventory for fleet allow-listing and CVE triage."),
+		table.WithPlatforms("linux"),
+		table.WithExample("SELECT pname, version FROM nix_system_packages WHERE pname = 'openssl';"),
+	)
 }
 
 func generateSystemPackages(ctx context.Context, closurePath string) ([]map[string]string, error) {
