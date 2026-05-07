@@ -2,8 +2,14 @@ name: Nix
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+
   pull_request:
+    branches:
+      - main
+
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -13,19 +19,17 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  flake-check:
-    name: nix flake check
+  check:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: DeterminateSystems/determinate-nix-action@92ffb5400c3776307a27a1727d7e2ac3dcd9f844 # v3.18.1
+      - uses: DeterminateSystems/magic-nix-cache-action@565684385bcd71bad329742eefe8d12f2e765b39 # v13
 
-      - uses: cachix/install-nix-action@v27
-        with:
-          extra_nix_config: |
-            experimental-features = nix-command flakes
-
-      # Eval-only — actually building the package requires a real
-      # vendorHash, which is currently `null` in flake.nix until the
-      # first `just update-vendor-hash` run. Once that's set, drop
-      # `--no-build` to fully build the derivation in CI.
-      - run: nix flake check --no-build --show-trace
+      # Eval-only for now: actually building the Go derivation requires a
+      # real `vendorHash` in flake.nix (currently `null` until someone
+      # runs `just update-vendor-hash` in a Nix shell). Once that's set,
+      # drop `--no-build` so this becomes a full `nix flake check`.
+      - name: Run flake checks
+        run: nix flake check --no-build --show-trace
