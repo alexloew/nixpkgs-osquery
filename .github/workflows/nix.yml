@@ -27,9 +27,5 @@ jobs:
       - uses: DeterminateSystems/determinate-nix-action@92ffb5400c3776307a27a1727d7e2ac3dcd9f844 # v3.18.1
       - uses: DeterminateSystems/magic-nix-cache-action@565684385bcd71bad329742eefe8d12f2e765b39 # v13
 
-      # Eval-only for now: actually building the Go derivation requires a
-      # real `vendorHash` in flake.nix (currently `null` until someone
-      # runs `just update-vendor-hash` in a Nix shell). Once that's set,
-      # drop `--no-build` so this becomes a full `nix flake check`.
       - name: Run flake checks
-        run: nix flake check --no-build --show-trace
+        run: nix flake check --show-trace

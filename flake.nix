@@ -21,8 +21,9 @@
 
           src = ./.;
 
-          # Update via `just update-vendor-hash` (or set to null to recompute).
-          vendorHash = null;
+          # Placeholder: CI will fail with "got: sha256-…" — copy that
+          # value here, or run `just update-vendor-hash` locally.
+          vendorHash = pkgs.lib.fakeHash;
 
           ldflags = [
             "-s"
