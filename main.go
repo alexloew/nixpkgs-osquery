@@ -8,13 +8,18 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	osquery "github.com/osquery/osquery-go"
+	"github.com/osquery/osquery-go/plugin/table"
 
 	"github.com/alexloew/nixpkgs-osquery/tables"
 )
@@ -33,6 +38,8 @@ func main() {
 		timeout  int
 		interval int
 		closure  string
+		verbose  bool
+		spec     bool
 		showVer  bool
 	)
 
@@ -40,13 +47,38 @@ func main() {
 	flag.IntVar(&timeout, "timeout", 3, "Seconds to wait for autoloaded extensions")
 	flag.IntVar(&interval, "interval", 3, "Seconds between connectivity checks against osqueryd")
 	flag.StringVar(&closure, "closure", "/run/current-system", "Nix closure to enumerate for nix_system_packages")
+	flag.BoolVar(&verbose, "verbose", false, "Enable verbose debug logging")
+	flag.BoolVar(&spec, "spec", false, "Print the JSON table specs and exit (no socket required)")
 	flag.BoolVar(&showVer, "version", false, "Print version information and exit")
-	// osquery may pass --verbose; accept and ignore.
-	flag.Bool("verbose", false, "")
 	flag.Parse()
 
 	if showVer {
 		fmt.Printf("nixpkgs-osquery %s (commit %s, built %s by %s)\n", version, commit, date, builtBy)
+		return
+	}
+
+	if verbose {
+		log.SetFlags(log.LstdFlags | log.Lmicroseconds | log.Lshortfile)
+		log.Printf("verbose logging enabled (version=%s, commit=%s)", version, commit)
+	}
+
+	plugins := []*table.Plugin{
+		tables.SystemPackages(closure),
+		tables.UserPackages(),
+		tables.HomePackages(),
+		tables.FlakeInputs(),
+	}
+
+	if spec {
+		specs := make([]any, 0, len(plugins))
+		for _, p := range plugins {
+			specs = append(specs, p.Spec())
+		}
+		out, err := json.MarshalIndent(specs, "", "  ")
+		if err != nil {
+			log.Fatalf("marshalling specs: %v", err)
+		}
+		fmt.Println(string(out))
 		return
 	}
 
@@ -65,10 +97,25 @@ func main() {
 		log.Fatalf("failed to create extension manager server: %v", err)
 	}
 
-	server.RegisterPlugin(tables.SystemPackages(closure))
-	server.RegisterPlugin(tables.UserPackages())
-	server.RegisterPlugin(tables.HomePackages())
-	server.RegisterPlugin(tables.FlakeInputs())
+	for _, p := range plugins {
+		server.RegisterPlugin(p)
+	}
+
+	// Trigger graceful shutdown on SIGINT/SIGTERM so systemd/k8s stops
+	// produce clean Thrift teardown rather than a yanked socket.
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		sig := <-sigCh
+		if verbose {
+			log.Printf("received %s, shutting down extension server", sig)
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := server.Shutdown(ctx); err != nil {
+			log.Printf("shutdown error: %v", err)
+		}
+	}()
 
 	if err := server.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "extension exited with error: %v\n", err)

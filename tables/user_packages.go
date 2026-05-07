@@ -26,14 +26,21 @@ import (
 // UserPackages returns the nix_user_packages table plugin.
 func UserPackages() *table.Plugin {
 	columns := []table.ColumnDefinition{
-		table.TextColumn("name"),        // full derivation name
-		table.TextColumn("pname"),       // package name
-		table.TextColumn("version"),     // version string
-		table.TextColumn("store_path"),  // absolute /nix/store path
-		table.TextColumn("username"),    // owning user
-		table.TextColumn("profile_path"), // resolved profile store path
+		table.TextColumn("name", table.ColumnDescription("Full derivation name.")),
+		table.TextColumn("pname", table.ColumnDescription("Package name without version.")),
+		table.TextColumn("version", table.ColumnDescription("Version string parsed from the derivation name.")),
+		table.TextColumn("store_path", table.ColumnDescription("Absolute /nix/store path of the package.")),
+		table.TextColumn("username", table.ColumnDescription("User whose nix-env profile contains the package.")),
+		table.TextColumn("profile_path", table.ColumnDescription("Resolved store path of the user profile.")),
 	}
-	return table.NewPlugin("nix_user_packages", columns, generateUserPackages)
+	return table.NewPlugin(
+		"nix_user_packages",
+		columns,
+		generateUserPackages,
+		table.WithDescription("Packages installed in per-user nix-env profiles under /nix/var/nix/profiles/per-user/<user>/profile."),
+		table.WithPlatforms("linux"),
+		table.WithExample("SELECT username, pname, version FROM nix_user_packages ORDER BY username, pname;"),
+	)
 }
 
 func generateUserPackages(ctx context.Context, _ table.QueryContext) ([]map[string]string, error) {

@@ -28,15 +28,22 @@ import (
 // HomePackages returns the nix_home_packages table plugin.
 func HomePackages() *table.Plugin {
 	columns := []table.ColumnDefinition{
-		table.TextColumn("name"),        // full derivation name
-		table.TextColumn("pname"),       // package name
-		table.TextColumn("version"),     // version string
-		table.TextColumn("store_path"),  // absolute /nix/store path
-		table.TextColumn("username"),    // owning user
-		table.BigIntColumn("generation"), // current Home Manager generation number
-		table.TextColumn("profile_path"), // resolved profile store path
+		table.TextColumn("name", table.ColumnDescription("Full derivation name.")),
+		table.TextColumn("pname", table.ColumnDescription("Package name without version.")),
+		table.TextColumn("version", table.ColumnDescription("Version string parsed from the derivation name.")),
+		table.TextColumn("store_path", table.ColumnDescription("Absolute /nix/store path of the package.")),
+		table.TextColumn("username", table.ColumnDescription("User whose Home Manager profile contains the package.")),
+		table.BigIntColumn("generation", table.ColumnDescription("Active Home Manager generation number.")),
+		table.TextColumn("profile_path", table.ColumnDescription("Resolved store path of the Home Manager profile.")),
 	}
-	return table.NewPlugin("nix_home_packages", columns, generateHomePackages)
+	return table.NewPlugin(
+		"nix_home_packages",
+		columns,
+		generateHomePackages,
+		table.WithDescription("Packages managed by Home Manager. Searches both legacy (/nix/var/nix/profiles/per-user) and XDG-state (~/.local/state/nix/profiles) locations."),
+		table.WithPlatforms("linux"),
+		table.WithExample("SELECT username, generation, pname, version FROM nix_home_packages WHERE pname = 'neovim';"),
+	)
 }
 
 type hmProfile struct {

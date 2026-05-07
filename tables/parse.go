@@ -1,12 +1,23 @@
 package tables
 
 import (
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
 )
 
-const nixStoreBin = "/run/current-system/sw/bin/nix-store"
+// nixStoreBin is the nix-store binary used to enumerate closures. It's
+// resolved at init time: prefer whatever's on PATH (the Nix package
+// wrapper injects nix), then fall back to the NixOS system profile.
+var nixStoreBin = resolveNixStore()
+
+func resolveNixStore() string {
+	if p, err := exec.LookPath("nix-store"); err == nil {
+		return p
+	}
+	return "/run/current-system/sw/bin/nix-store"
+}
 
 // storePathRe matches a valid Nix store path and captures the name-version
 // portion after the 32-character hash.

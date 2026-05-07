@@ -147,10 +147,12 @@ nix-shell
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--socket` | _(required)_ | Path to the osquery extensions UNIX domain socket. |
+| `--socket` | _(required for osquery)_ | Path to the osquery extensions UNIX domain socket. |
 | `--timeout` | `3` | Seconds to wait for autoloaded extensions. |
 | `--interval` | `3` | Seconds between connectivity checks against `osqueryd`. |
 | `--closure` | `/run/current-system` | Nix closure to enumerate for `nix_system_packages`. Useful for inspecting alternate generations or build outputs in CI. |
+| `--verbose` | `false` | Enable verbose debug logging. Honored when `osqueryd` autoloads with verbose mode. |
+| `--spec` | `false` | Print the JSON spec for all four tables and exit. Useful for documentation generation and schema linting. |
 | `--version` | — | Print version metadata and exit. |
 
 ## Running
@@ -183,6 +185,38 @@ systemctl restart osqueryd
 imports = [ ./nixpkgs-osquery/nix/module.nix ];
 services.osquery.nixPackagesExtension.enable = true;
 ```
+
+The module wires the autoload file into `services.osquery.flags` so
+`osqueryd` is launched with `--extensions_autoload`,
+`--extensions_timeout`, and `--extensions_interval` set correctly. It
+also generates a wrapper derivation when a non-default `closure` is
+configured, since `osqueryd` does not forward arbitrary flags to
+autoloaded extensions.
+
+---
+
+## Security model
+
+osquery refuses to load any extension whose path is writable by a
+non-root user. From the [extensions docs][]:
+
+> the osquery agent will refuse to load an extension executable from
+> the filesystem if the file's permissions allow write or modify by
+> non-privileged accounts.
+
+In practice this means:
+
+- The Nix build outputs the binary under `/nix/store/...`, which is
+  always root-owned and read-only. The NixOS module installs the
+  autoload file at `/etc/osquery/extensions.load` with mode `0644`,
+  owned by root.
+- When invoking from an arbitrary location, ensure the binary and its
+  parent directory are owned by `root` and not group/world-writable.
+  `chown root:root nixpkgs-osquery && chmod 755 nixpkgs-osquery`.
+- `--allow_unsafe` bypasses these checks for development. Do not use
+  it in production.
+
+[extensions docs]: https://osquery.readthedocs.io/en/latest/deployment/extensions/
 
 ---
 

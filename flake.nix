@@ -31,9 +31,14 @@
             "-X main.builtBy=flake"
           ];
 
-          # osquery's autoloader expects extension binaries to end in `.ext`.
-          # Provide both the bare name and the `.ext` form so either works.
+          nativeBuildInputs = [ pkgs.makeBinaryWrapper ];
+
+          # Wrap the binary so `nix-store` is on PATH at runtime — the
+          # extension shells out to it. Also provide the `.ext` alias
+          # required by osquery's autoloader.
           postInstall = ''
+            wrapProgram $out/bin/nixpkgs-osquery \
+              --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.nix ]}
             ln -s nixpkgs-osquery $out/bin/nixpkgs-osquery.ext
           '';
 

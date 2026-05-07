@@ -31,18 +31,25 @@ import (
 // FlakeInputs returns the nix_flake_inputs table plugin.
 func FlakeInputs() *table.Plugin {
 	columns := []table.ColumnDefinition{
-		table.TextColumn("input"),         // input name, e.g. "nixpkgs"
-		table.TextColumn("type"),          // locked type: github, gitlab, path, git, …
-		table.TextColumn("owner"),         // github/gitlab owner
-		table.TextColumn("repo"),          // github/gitlab repo name
-		table.TextColumn("ref"),           // branch/tag reference
-		table.TextColumn("rev"),           // pinned git revision (SHA)
-		table.BigIntColumn("last_modified"), // Unix timestamp of the pinned commit
-		table.TextColumn("nar_hash"),      // content-addressed hash of the fetched tree
-		table.TextColumn("url"),           // URL for non-github/gitlab inputs
-		table.TextColumn("flake_path"),    // absolute path to the flake.lock file
+		table.TextColumn("input", table.ColumnDescription("Input name as declared in the flake, e.g. 'nixpkgs'.")),
+		table.TextColumn("type", table.ColumnDescription("Locked source type: github, gitlab, path, git, etc.")),
+		table.TextColumn("owner", table.ColumnDescription("GitHub/GitLab owner.")),
+		table.TextColumn("repo", table.ColumnDescription("GitHub/GitLab repository name.")),
+		table.TextColumn("ref", table.ColumnDescription("Branch or tag reference.")),
+		table.TextColumn("rev", table.ColumnDescription("Pinned git revision (SHA).")),
+		table.BigIntColumn("last_modified", table.ColumnDescription("Unix timestamp of the pinned commit.")),
+		table.TextColumn("nar_hash", table.ColumnDescription("Content-addressed hash of the fetched tree.")),
+		table.TextColumn("url", table.ColumnDescription("URL for non-GitHub/GitLab inputs.")),
+		table.TextColumn("flake_path", table.ColumnDescription("Absolute path to the flake.lock file.")),
 	}
-	return table.NewPlugin("nix_flake_inputs", columns, generateFlakeInputs)
+	return table.NewPlugin(
+		"nix_flake_inputs",
+		columns,
+		generateFlakeInputs,
+		table.WithDescription("Pinned input metadata extracted from flake.lock files. Useful for fleet drift detection — e.g. finding hosts whose nixpkgs revision lags a desired pin."),
+		table.WithPlatforms("linux"),
+		table.WithExample("SELECT flake_path, rev FROM nix_flake_inputs WHERE input = 'nixpkgs';"),
+	)
 }
 
 // flakeLock mirrors the structure of a flake.lock file (version 7).
