@@ -1,18 +1,35 @@
 # Nix derivation for the nixpkgs-osquery extension.
 #
 # Build:   nix-build
-# Result:  ./result/bin/nixpkgs-osquery
+# Result:  ./result/bin/nixpkgs-osquery (and .../nixpkgs-osquery.ext)
+#
+# Flake users should prefer `nix build` against flake.nix; this file is kept
+# for environments without flakes enabled.
 { pkgs ? import <nixpkgs> {} }:
 
+let
+  version = "1.0.0";
+in
 pkgs.buildGoModule {
   pname = "nixpkgs-osquery";
-  version = "1.0.0";
+  inherit version;
 
   src = ./.;
 
-  # Set to the hash printed by `nix-build` on first run, or use `null`
-  # temporarily to fetch and compute it.
+  # Update via `just update-vendor-hash` (or set to null to recompute).
   vendorHash = null;
+
+  ldflags = [
+    "-s"
+    "-w"
+    "-X main.version=${version}"
+    "-X main.builtBy=nix"
+  ];
+
+  # osquery's autoloader expects extension binaries to end in `.ext`.
+  postInstall = ''
+    ln -s nixpkgs-osquery $out/bin/nixpkgs-osquery.ext
+  '';
 
   meta = with pkgs.lib; {
     description = "osquery extension that enumerates packages on a NixOS system";
