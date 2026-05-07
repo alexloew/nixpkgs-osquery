@@ -24,15 +24,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-
-      # NOTE: fleet-nixos uses DeterminateSystems/determinate-nix-action +
-      # magic-nix-cache-action, but those require FlakeHub auth. Until
-      # this repo is wired into FlakeHub, use cachix's classic installer
-      # which needs no external account.
-      - uses: cachix/install-nix-action@v27
-        with:
-          extra_nix_config: |
-            experimental-features = nix-command flakes
+      - uses: DeterminateSystems/determinate-nix-action@92ffb5400c3776307a27a1727d7e2ac3dcd9f844 # v3.18.1
+      - uses: DeterminateSystems/magic-nix-cache-action@565684385bcd71bad329742eefe8d12f2e765b39 # v13
 
       - name: Run flake checks
         run: nix flake check --show-trace
