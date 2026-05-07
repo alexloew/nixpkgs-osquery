@@ -52,6 +52,14 @@
           default = nixpkgs-osquery;
         };
 
+        # Mirror packages into checks so `nix flake check` actually
+        # realizes the derivation (flake check otherwise only evaluates
+        # packages.* without building them).
+        checks = {
+          inherit nixpkgs-osquery;
+          default = nixpkgs-osquery;
+        };
+
         apps = {
           default = {
             type = "app";
