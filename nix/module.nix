@@ -12,32 +12,24 @@ with lib;
 let
   cfg = config.services.osquery.nixPackagesExtension;
 
-  # Build the extension binary from source.
-  nixpkgs-osquery = pkgs.buildGoModule {
-    pname = "nixpkgs-osquery";
-    version = "1.0.0";
+  nixpkgs-osquery = pkgs.callPackage ../default.nix {};
 
-    src = ../.;
-
-    # Update this hash after running `nix build` for the first time:
-    #   nix build && nix-prefetch-url --unpack file://$(pwd)/result
-    # or use `vendorHash = null;` temporarily to get the expected hash.
-    vendorHash = null;
-
-    meta = {
-      description = "osquery extension for NixOS/Nix package inventory";
-      platforms = lib.platforms.linux;
-    };
-  };
-
-  extensionBin = "${nixpkgs-osquery}/bin/nixpkgs-osquery";
-
-  # Path to the extensions autoload file osqueryd reads at startup.
-  autoloadFile = "/etc/osquery/extensions.load";
+  # osquery loads extensions whose path ends in `.ext`.
+  extensionBin = "${nixpkgs-osquery}/bin/nixpkgs-osquery.ext";
 in
 {
   options.services.osquery.nixPackagesExtension = {
     enable = mkEnableOption "NixOS packages osquery extension";
+
+    closure = mkOption {
+      type = types.str;
+      default = "/run/current-system";
+      description = ''
+        Nix closure to enumerate for the nix_system_packages table.
+        Defaults to the active NixOS system. Override to point at a
+        specific generation, container image, or build output.
+      '';
+    };
 
     tables = mkOption {
       type = types.listOf (types.enum [
@@ -61,17 +53,14 @@ in
   };
 
   config = mkIf cfg.enable {
-    # Ensure osquery daemon is enabled.
     services.osquery.enable = true;
 
-    # Register the extension in the autoload file.
     environment.etc."osquery/extensions.load" = {
       text = "${extensionBin}\n";
       mode = "0644";
     };
 
-    # Make nix-store available in the PATH that osqueryd inherits,
-    # since the extension shells out to nix-store at query time.
+    # nix-store is shelled out to at query time.
     environment.systemPackages = [ pkgs.nix ];
   };
 }

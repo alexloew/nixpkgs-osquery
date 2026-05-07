@@ -124,13 +124,34 @@ go mod tidy
 go build -o nixpkgs-osquery .
 ```
 
+Or via the [`justfile`](./justfile):
+
+```bash
+just build              # plain build
+just build-release v1.0 # bakes in version/commit/date
+just test
+just lint
+```
+
 Or with Nix:
 
 ```bash
-nix-build          # produces ./result/bin/nixpkgs-osquery
-# or
-nix-shell          # drops into a dev shell with Go + osquery
+nix build               # flake: produces ./result/bin/nixpkgs-osquery[.ext]
+nix develop             # flake dev shell (Go, gofumpt, golangci-lint, just, …)
+# or, without flakes:
+nix-build               # ./result/bin/nixpkgs-osquery
+nix-shell
 ```
+
+## Flags
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--socket` | _(required)_ | Path to the osquery extensions UNIX domain socket. |
+| `--timeout` | `3` | Seconds to wait for autoloaded extensions. |
+| `--interval` | `3` | Seconds between connectivity checks against `osqueryd`. |
+| `--closure` | `/run/current-system` | Nix closure to enumerate for `nix_system_packages`. Useful for inspecting alternate generations or build outputs in CI. |
+| `--version` | — | Print version metadata and exit. |
 
 ## Running
 
@@ -145,8 +166,13 @@ osquery> SELECT * FROM nix_flake_inputs;
 
 ### Daemon (osqueryd)
 
+osquery's autoloader expects extension paths ending in `.ext`. The Nix
+build provides `nixpkgs-osquery.ext` as a symlink alongside the bare
+binary; for hand-built copies, symlink it yourself:
+
 ```bash
-echo "/path/to/nixpkgs-osquery" >> /etc/osquery/extensions.load
+ln -s nixpkgs-osquery nixpkgs-osquery.ext
+echo "/path/to/nixpkgs-osquery.ext" >> /etc/osquery/extensions.load
 systemctl restart osqueryd
 ```
 
@@ -180,7 +206,9 @@ See `tables/parse_test.go` for the full test matrix.
 ## Testing
 
 ```bash
-go test ./tables/...
+go test ./...
+# or
+just test
 ```
 
 ## License

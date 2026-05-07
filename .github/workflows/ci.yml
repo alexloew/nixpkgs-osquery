@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: build & test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Verify go.mod tidy
+        run: |
+          go mod tidy
+          git diff --exit-code -- go.mod go.sum
+
+      - run: go vet ./...
+      - run: go build ./...
+      - run: go test -race -count=1 ./...
+
+# NOTE: a `lint` job running golangci-lint is deliberately omitted.
+# `osquery-go` requires `go 1.26`, so our `go` directive is pinned to
+# 1.26. The latest released golangci-lint (v2.12.x as of this writing)
+# is still built with Go 1.25 and refuses to analyze 1.26 source. Run
+# `just lint` locally with a Go-1.26-built binary, and re-add the job
+# here when upstream catches up:
+#
+#   lint:
+#     name: golangci-lint
+#     runs-on: ubuntu-latest
+#     steps:
+#       - uses: actions/checkout@v4
+#       - uses: actions/setup-go@v5
+#         with:
+#           go-version-file: go.mod
+#           cache: false
+#       - uses: golangci/golangci-lint-action@v6
+#         with:
+#           version: latest
+#           args: --timeout=5m
