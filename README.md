@@ -218,11 +218,10 @@ firmware blobs. For CVE/SCA triage that maximalism is correct (each
 binary may carry vulnerabilities). For a human-readable "installed
 packages" report it is overwhelming.
 
-Following the upstream [audit discussion][discourse-audit], we resolve
-each store path back to its `.drv` via `nix-store -q --deriver` and
-inspect `env.pname` / `env.version` via `nix derivation show`. Rows
-where both are non-empty are tagged `is_package = 1`; everything else
-is `is_package = 0`.
+We resolve each store path back to its `.drv` via `nix-store -q
+--deriver` and inspect `env.pname` / `env.version` via `nix derivation
+show`. Rows where both are non-empty are tagged `is_package = 1`;
+everything else is `is_package = 0`.
 
 ```sql
 -- Maximalist view (default)
@@ -243,8 +242,6 @@ When the `.drv` is unavailable (GC'd or `keep-derivations = false`),
 `derivation_path` is empty, `is_package` is `0`, and `pname` / `version`
 fall back to the heuristic split documented in the **Store Path
 Parsing** section below.
-
-[discourse-audit]: https://discourse.nixos.org/t/list-all-installed-packages-version-for-audit-purposes/67280
 
 ---
 
