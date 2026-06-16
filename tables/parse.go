@@ -7,16 +7,20 @@ import (
 	"strings"
 )
 
-// nixStoreBin is the nix-store binary used to enumerate closures. It's
-// resolved at init time: prefer whatever's on PATH (the Nix package
+// nixStoreBin is the nix-store binary used to enumerate closures.
+// nixBin is the nix CLI used for richer queries (derivation show). Both
+// are resolved at init time: prefer whatever's on PATH (the Nix package
 // wrapper injects nix), then fall back to the NixOS system profile.
-var nixStoreBin = resolveNixStore()
+var (
+	nixStoreBin = resolveNixBinary("nix-store")
+	nixBin      = resolveNixBinary("nix")
+)
 
-func resolveNixStore() string {
-	if p, err := exec.LookPath("nix-store"); err == nil {
+func resolveNixBinary(name string) string {
+	if p, err := exec.LookPath(name); err == nil {
 		return p
 	}
-	return "/run/current-system/sw/bin/nix-store"
+	return "/run/current-system/sw/bin/" + name
 }
 
 // storePathRe matches a valid Nix store path and captures the name-version

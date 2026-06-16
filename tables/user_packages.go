@@ -9,16 +9,13 @@ package tables
 // Example queries:
 //
 //	SELECT pname, version, username FROM nix_user_packages;
-//	SELECT * FROM nix_user_packages WHERE username = 'alice';
+//	SELECT * FROM nix_user_packages WHERE username = 'alice' AND is_package = 1;
 
 import (
-	"bufio"
-	"bytes"
 	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 
 	"github.com/osquery/osquery-go/plugin/table"
 )
@@ -27,9 +24,11 @@ import (
 func UserPackages() *table.Plugin {
 	columns := []table.ColumnDefinition{
 		table.TextColumn("name", table.ColumnDescription("Full derivation name.")),
-		table.TextColumn("pname", table.ColumnDescription("Package name without version.")),
-		table.TextColumn("version", table.ColumnDescription("Version string parsed from the derivation name.")),
+		table.TextColumn("pname", table.ColumnDescription("Package name without version. Sourced from the .drv when available.")),
+		table.TextColumn("version", table.ColumnDescription("Version string. Sourced from the .drv when available.")),
 		table.TextColumn("store_path", table.ColumnDescription("Absolute /nix/store path of the package.")),
+		table.TextColumn("derivation_path", table.ColumnDescription("Originating .drv path. Empty when keep-derivations is off or the .drv was garbage-collected.")),
+		table.BigIntColumn("is_package", table.ColumnDescription("1 when the .drv exposes both env.pname and env.version; 0 for wrappers, hooks, locale data, unit scripts, etc.")),
 		table.TextColumn("username", table.ColumnDescription("User whose nix-env profile contains the package.")),
 		table.TextColumn("profile_path", table.ColumnDescription("Resolved store path of the user profile.")),
 	}
@@ -37,9 +36,9 @@ func UserPackages() *table.Plugin {
 		"nix_user_packages",
 		columns,
 		generateUserPackages,
-		table.WithDescription("Packages installed in per-user nix-env profiles under /nix/var/nix/profiles/per-user/<user>/profile."),
+		table.WithDescription("Packages installed in per-user nix-env profiles under /nix/var/nix/profiles/per-user/<user>/profile. Use `WHERE is_package = 1` for the human-recognisable subset."),
 		table.WithPlatforms("linux"),
-		table.WithExample("SELECT username, pname, version FROM nix_user_packages ORDER BY username, pname;"),
+		table.WithExample("SELECT username, pname, version FROM nix_user_packages WHERE is_package = 1 ORDER BY username, pname;"),
 	)
 }
 
@@ -71,21 +70,14 @@ func generateUserPackages(ctx context.Context, _ table.QueryContext) ([]map[stri
 			continue
 		}
 
-		scanner := bufio.NewScanner(bytes.NewReader(out))
-		for scanner.Scan() {
-			line := strings.TrimSpace(scanner.Text())
-			if line == "" || !strings.HasPrefix(line, "/nix/store/") {
-				continue
-			}
-			name, pname, version := ParseStorePath(line)
-			rows = append(rows, map[string]string{
-				"name":         name,
-				"pname":        pname,
-				"version":      version,
-				"store_path":   line,
-				"username":     username,
-				"profile_path": resolved,
-			})
+		storePaths := scanStorePaths(out)
+		drvByPath, infoByDrv := enrichClosure(ctx, storePaths)
+
+		for _, p := range storePaths {
+			row := buildPackageRow(p, drvByPath, infoByDrv)
+			row["username"] = username
+			row["profile_path"] = resolved
+			rows = append(rows, row)
 		}
 	}
 
