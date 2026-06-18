@@ -13,8 +13,6 @@ package tables
 //	WHERE pname = 'neovim';
 
 import (
-	"bufio"
-	"bytes"
 	"context"
 	"os"
 	"os/exec"
@@ -29,9 +27,11 @@ import (
 func HomePackages() *table.Plugin {
 	columns := []table.ColumnDefinition{
 		table.TextColumn("name", table.ColumnDescription("Full derivation name.")),
-		table.TextColumn("pname", table.ColumnDescription("Package name without version.")),
-		table.TextColumn("version", table.ColumnDescription("Version string parsed from the derivation name.")),
+		table.TextColumn("pname", table.ColumnDescription("Package name without version. Sourced from the .drv when available.")),
+		table.TextColumn("version", table.ColumnDescription("Version string. Sourced from the .drv when available.")),
 		table.TextColumn("store_path", table.ColumnDescription("Absolute /nix/store path of the package.")),
+		table.TextColumn("derivation_path", table.ColumnDescription("Originating .drv path. Empty when keep-derivations is off or the .drv was garbage-collected.")),
+		table.BigIntColumn("is_package", table.ColumnDescription("1 when the .drv exposes both env.pname and env.version; 0 for wrappers, hooks, locale data, unit scripts, etc.")),
 		table.TextColumn("username", table.ColumnDescription("User whose Home Manager profile contains the package.")),
 		table.BigIntColumn("generation", table.ColumnDescription("Active Home Manager generation number.")),
 		table.TextColumn("profile_path", table.ColumnDescription("Resolved store path of the Home Manager profile.")),
@@ -40,7 +40,7 @@ func HomePackages() *table.Plugin {
 		"nix_home_packages",
 		columns,
 		generateHomePackages,
-		table.WithDescription("Packages managed by Home Manager. Searches both legacy (/nix/var/nix/profiles/per-user) and XDG-state (~/.local/state/nix/profiles) locations."),
+		table.WithDescription("Packages managed by Home Manager. Searches both legacy (/nix/var/nix/profiles/per-user) and XDG-state (~/.local/state/nix/profiles) locations. Use `WHERE is_package = 1` for the human-recognisable subset."),
 		table.WithPlatforms("linux"),
 		table.WithExample("SELECT username, generation, pname, version FROM nix_home_packages WHERE pname = 'neovim';"),
 	)
@@ -139,22 +139,15 @@ func generateHomePackages(ctx context.Context, _ table.QueryContext) ([]map[stri
 			continue
 		}
 
-		scanner := bufio.NewScanner(bytes.NewReader(out))
-		for scanner.Scan() {
-			line := strings.TrimSpace(scanner.Text())
-			if line == "" || !strings.HasPrefix(line, "/nix/store/") {
-				continue
-			}
-			name, pname, version := ParseStorePath(line)
-			rows = append(rows, map[string]string{
-				"name":         name,
-				"pname":        pname,
-				"version":      version,
-				"store_path":   line,
-				"username":     hm.username,
-				"generation":   gen,
-				"profile_path": resolved,
-			})
+		storePaths := scanStorePaths(out)
+		drvByPath, infoByDrv := enrichClosure(ctx, storePaths)
+
+		for _, p := range storePaths {
+			row := buildPackageRow(p, drvByPath, infoByDrv)
+			row["username"] = hm.username
+			row["generation"] = gen
+			row["profile_path"] = resolved
+			rows = append(rows, row)
 		}
 	}
 

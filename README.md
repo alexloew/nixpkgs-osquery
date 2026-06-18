@@ -15,9 +15,11 @@ CrowdStrike allow-listing and CVE triage across a NixOS fleet.
 | Column | Type | Description |
 |--------|------|-------------|
 | `name` | TEXT | Full derivation name, e.g. `curl-7.88.1` |
-| `pname` | TEXT | Package name without version, e.g. `curl` |
-| `version` | TEXT | Version string, e.g. `7.88.1` |
+| `pname` | TEXT | Package name without version, e.g. `curl`. Sourced from `env.pname` in the `.drv` when available, otherwise heuristically split from the store path. |
+| `version` | TEXT | Version string, e.g. `7.88.1`. Sourced from `env.version` when available. |
 | `store_path` | TEXT | Absolute `/nix/store` path |
+| `derivation_path` | TEXT | Originating `.drv` path. Empty when `keep-derivations` is off or the `.drv` was garbage-collected. |
+| `is_package` | BIGINT | `1` when the `.drv` exposes both `env.pname` and `env.version` (a user-visible package); `0` for wrappers, hooks, locale data, unit scripts, etc. Use `WHERE is_package = 1` for the audit-friendly view. |
 
 ### `nix_user_packages`
 
@@ -27,9 +29,11 @@ Packages installed in per-user `nix-env` profiles
 | Column | Type | Description |
 |--------|------|-------------|
 | `name` | TEXT | Full derivation name |
-| `pname` | TEXT | Package name |
-| `version` | TEXT | Version string |
+| `pname` | TEXT | Package name (sourced from `.drv` when available) |
+| `version` | TEXT | Version string (sourced from `.drv` when available) |
 | `store_path` | TEXT | Absolute `/nix/store` path |
+| `derivation_path` | TEXT | Originating `.drv` path |
+| `is_package` | BIGINT | `1` for user-visible packages, `0` for build artifacts |
 | `username` | TEXT | Owning user |
 | `profile_path` | TEXT | Resolved store path of the profile |
 
@@ -42,9 +46,11 @@ Nix 2.4+.
 | Column | Type | Description |
 |--------|------|-------------|
 | `name` | TEXT | Full derivation name |
-| `pname` | TEXT | Package name |
-| `version` | TEXT | Version string |
+| `pname` | TEXT | Package name (sourced from `.drv` when available) |
+| `version` | TEXT | Version string (sourced from `.drv` when available) |
 | `store_path` | TEXT | Absolute `/nix/store` path |
+| `derivation_path` | TEXT | Originating `.drv` path |
+| `is_package` | BIGINT | `1` for user-visible packages, `0` for build artifacts |
 | `username` | TEXT | Owning user |
 | `generation` | BIGINT | Current Home Manager generation number |
 | `profile_path` | TEXT | Resolved store path of the Home Manager profile |
@@ -78,8 +84,16 @@ behind the desired revision pin.
 ## Example Queries
 
 ```sql
--- Full software inventory
+-- Full software inventory (every store path in the closure, including
+-- hooks, locale data, unit scripts, etc — the maximalist view used for
+-- CVE triage)
 SELECT pname, version FROM nix_system_packages ORDER BY pname;
+
+-- Human-recognisable package list for audit/MDM reporting. is_package
+-- filters out wrappers, hooks, locale data, unit scripts, etc.
+SELECT pname, version FROM nix_system_packages
+WHERE is_package = 1
+ORDER BY pname;
 
 -- Find a specific package anywhere on the system
 SELECT pname, version, store_path
@@ -192,6 +206,42 @@ The module wires the autoload file into `services.osquery.flags` so
 also generates a wrapper derivation when a non-default `closure` is
 configured, since `osqueryd` does not forward arbitrary flags to
 autoloaded extensions.
+
+---
+
+## Closure view vs. package list
+
+`nix-store -qR <closure>` is the only authoritative answer to "what is
+physically present on disk", but it returns *every* store path —
+wrappers, completion scripts, locale data, systemd unit scripts, hooks,
+firmware blobs. For CVE/SCA triage that maximalism is correct (each
+binary may carry vulnerabilities). For a human-readable "installed
+packages" report it is overwhelming.
+
+We resolve each store path back to its `.drv` via `nix-store -q
+--deriver` and inspect `env.pname` / `env.version` via `nix derivation
+show`. Rows where both are non-empty are tagged `is_package = 1`;
+everything else is `is_package = 0`.
+
+```sql
+-- Maximalist view (default)
+SELECT count(*) FROM nix_system_packages;                  -- ~3000+
+
+-- Human-recognisable packages
+SELECT count(*) FROM nix_system_packages WHERE is_package = 1;  -- ~200
+```
+
+Requirements for the enriched columns to populate:
+
+- `keep-derivations = true` in the system Nix config (default on NixOS).
+- `nix` CLI with `nix-command` experimental feature available — the
+  Nix-built extension wraps `pkgs.nix` into the binary's PATH, so this
+  is automatic on NixOS deployments.
+
+When the `.drv` is unavailable (GC'd or `keep-derivations = false`),
+`derivation_path` is empty, `is_package` is `0`, and `pname` / `version`
+fall back to the heuristic split documented in the **Store Path
+Parsing** section below.
 
 ---
 
