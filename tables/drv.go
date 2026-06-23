@@ -96,12 +96,28 @@ func loadDerivationMeta(ctx context.Context, drvPaths []string) map[string]drvIn
 	return parseDerivationShow(out)
 }
 
-// parseDerivationShow is split out for testability.
+// parseDerivationShow is split out for testability. It accepts both shapes
+// of `nix derivation show` output:
+//
+//	modern (Nix ≥ ~2.30): {"version":N,"derivations":{<drv>:{…}}}
+//	legacy:               {<drv>:{…}}
+//
+// The format gained the {version,derivations} envelope underneath us, which
+// silently broke the legacy `map[string]derivationShow` decode (the numeric
+// "version" field fails to unmarshal into the struct) and zeroed is_package
+// across every row. Tolerating both shapes keeps us robust to the next bump.
 func parseDerivationShow(data []byte) map[string]drvInfo {
+	// Try the modern envelope first; fall back to the legacy flat object.
+	var envelope struct {
+		Derivations map[string]derivationShow `json:"derivations"`
+	}
 	var raw map[string]derivationShow
-	if err := json.Unmarshal(data, &raw); err != nil {
+	if err := json.Unmarshal(data, &envelope); err == nil && len(envelope.Derivations) > 0 {
+		raw = envelope.Derivations
+	} else if err := json.Unmarshal(data, &raw); err != nil {
 		return nil
 	}
+
 	result := make(map[string]drvInfo, len(raw))
 	for drvPath, ds := range raw {
 		pname := ds.Env["pname"]
