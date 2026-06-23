@@ -49,6 +49,28 @@ const realCurlDerivation = `{
   }
 }`
 
+// envelopedCurlDerivation is the modern `nix derivation show` output shape
+// (Nix ≥ ~2.30), wrapping the per-drv map in {"version":N,"derivations":…}.
+// Decoding this with the legacy `map[string]derivationShow` fails on the
+// numeric "version" field, which is exactly the regression that silently
+// zeroed is_package on production hosts running newer Nix.
+const envelopedCurlDerivation = `{
+  "version": 4,
+  "derivations": {
+    "/nix/store/abcdefghijklmnopqrstuvwxyz123456-curl-7.88.1.drv": {
+      "args": ["-e", "/nix/store/.../builder.sh"],
+      "builder": "/nix/store/.../bash",
+      "env": {
+        "name": "curl-7.88.1",
+        "pname": "curl",
+        "version": "7.88.1"
+      },
+      "outputs": {"out": {"path": "/nix/store/.../out"}},
+      "system": "x86_64-linux"
+    }
+  }
+}`
+
 func TestParseDerivationShow(t *testing.T) {
 	got := parseDerivationShow([]byte(realCurlDerivation))
 	if len(got) != 3 {
@@ -93,6 +115,25 @@ func TestParseDerivationShow(t *testing.T) {
 				tc.drvPath, info.Pname, info.Version, info.IsPackage,
 				tc.pname, tc.version, tc.isPackage)
 		}
+	}
+}
+
+// TestParseDerivationShowEnveloped guards against the Nix output-format bump
+// that wraps derivations in a {"version":N,"derivations":…} envelope. A
+// regression here previously left is_package=0 on every row.
+func TestParseDerivationShowEnveloped(t *testing.T) {
+	got := parseDerivationShow([]byte(envelopedCurlDerivation))
+	if len(got) != 1 {
+		t.Fatalf("want 1 entry, got %d", len(got))
+	}
+	const drv = "/nix/store/abcdefghijklmnopqrstuvwxyz123456-curl-7.88.1.drv"
+	info, ok := got[drv]
+	if !ok {
+		t.Fatalf("missing entry for %s", drv)
+	}
+	if info.Pname != "curl" || info.Version != "7.88.1" || !info.IsPackage {
+		t.Errorf("got (%q, %q, %v), want (curl, 7.88.1, true)",
+			info.Pname, info.Version, info.IsPackage)
 	}
 }
 
