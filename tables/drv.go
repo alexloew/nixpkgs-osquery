@@ -85,6 +85,18 @@ func loadDerivationMeta(ctx context.Context, drvPaths []string) map[string]drvIn
 		unique = append(unique, p)
 	}
 
+	// `nix derivation show` is all-or-nothing: a single invalid store-path
+	// argument aborts the entire batch with a non-zero exit. On NixOS this
+	// happens routinely — a package's .drv is garbage-collected while its
+	// output stays in the system closure, yet `nix-store -q --deriver` still
+	// reports the (now-absent) deriver. Without filtering, one such .drv
+	// zeroes out is_package for every row in the query. Drop invalid paths
+	// first so enrichment degrades per-package instead of wholesale.
+	unique = keepValidStorePaths(ctx, unique)
+	if len(unique) == 0 {
+		return nil
+	}
+
 	args := append([]string{
 		"--extra-experimental-features", "nix-command",
 		"derivation", "show",
@@ -94,6 +106,41 @@ func loadDerivationMeta(ctx context.Context, drvPaths []string) map[string]drvIn
 		return nil
 	}
 	return parseDerivationShow(out)
+}
+
+// keepValidStorePaths returns the subset of paths that are valid (present and
+// registered) in the Nix store, via a single
+// `nix-store --check-validity --print-invalid` call. On any error it returns
+// the input unchanged (best effort — let the caller try). This guards the
+// batch `nix derivation show`, which treats any invalid argument as fatal for
+// the whole invocation.
+func keepValidStorePaths(ctx context.Context, paths []string) []string {
+	if len(paths) == 0 {
+		return paths
+	}
+	args := append([]string{"--check-validity", "--print-invalid"}, paths...)
+	out, err := exec.CommandContext(ctx, nixStoreBin, args...).Output()
+	if err != nil {
+		return paths
+	}
+	invalid := make(map[string]struct{})
+	scanner := bufio.NewScanner(bytes.NewReader(out))
+	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+	for scanner.Scan() {
+		if line := strings.TrimSpace(scanner.Text()); line != "" {
+			invalid[line] = struct{}{}
+		}
+	}
+	if len(invalid) == 0 {
+		return paths
+	}
+	valid := paths[:0:0]
+	for _, p := range paths {
+		if _, bad := invalid[p]; !bad {
+			valid = append(valid, p)
+		}
+	}
+	return valid
 }
 
 // parseDerivationShow is split out for testability. It accepts both shapes
