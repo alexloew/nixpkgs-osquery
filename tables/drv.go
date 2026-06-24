@@ -153,6 +153,12 @@ func keepValidStorePaths(ctx context.Context, paths []string) []string {
 // silently broke the legacy `map[string]derivationShow` decode (the numeric
 // "version" field fails to unmarshal into the struct) and zeroed is_package
 // across every row. Tolerating both shapes keeps us robust to the next bump.
+//
+// The envelope also keys its map by the store-relative basename
+// (foo.drv) rather than the absolute /nix/store/foo.drv path the legacy
+// format used. We normalize every key back to an absolute path so callers
+// can look up by the deriver path from `nix-store -q --deriver`; without
+// this, the lookup misses on modern Nix and is_package stays 0 everywhere.
 func parseDerivationShow(data []byte) map[string]drvInfo {
 	// Try the modern envelope first; fall back to the legacy flat object.
 	var envelope struct {
@@ -167,9 +173,13 @@ func parseDerivationShow(data []byte) map[string]drvInfo {
 
 	result := make(map[string]drvInfo, len(raw))
 	for drvPath, ds := range raw {
+		key := drvPath
+		if !strings.HasPrefix(key, "/nix/store/") {
+			key = "/nix/store/" + key
+		}
 		pname := ds.Env["pname"]
 		version := ds.Env["version"]
-		result[drvPath] = drvInfo{
+		result[key] = drvInfo{
 			Pname:     pname,
 			Version:   version,
 			IsPackage: pname != "" && version != "",
