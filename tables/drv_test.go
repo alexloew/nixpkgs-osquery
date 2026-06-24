@@ -54,10 +54,14 @@ const realCurlDerivation = `{
 // Decoding this with the legacy `map[string]derivationShow` fails on the
 // numeric "version" field, which is exactly the regression that silently
 // zeroed is_package on production hosts running newer Nix.
+//
+// Note the keys are store-relative basenames (no /nix/store/ prefix), as
+// real Nix emits them — parseDerivationShow must normalize these back to
+// absolute paths or callers' lookups miss and is_package stays 0.
 const envelopedCurlDerivation = `{
   "version": 4,
   "derivations": {
-    "/nix/store/abcdefghijklmnopqrstuvwxyz123456-curl-7.88.1.drv": {
+    "abcdefghijklmnopqrstuvwxyz123456-curl-7.88.1.drv": {
       "args": ["-e", "/nix/store/.../builder.sh"],
       "builder": "/nix/store/.../bash",
       "env": {
